@@ -5,77 +5,73 @@ Module: src.main
 
 Purpose
 -------
-This module serves as the application entry point for QA Sentinel AI.
+Entry point for the QA Sentinel AI application.
 
-It is responsible for bootstrapping the command-line interface (CLI) and
-starting the application. It does not contain any business logic or
-domain-specific implementation.
+This module is responsible for bootstrapping the command-line interface (CLI),
+initializing application-wide services such as logging, and delegating execution
+to the appropriate command handlers.
 
 Why This Module Exists
 ----------------------
-Every application needs a single, well-defined entry point.
-
-The responsibility of this module is to initialize the CLI framework,
-register available commands, and transfer control to the appropriate
-command implementation.
-
-Keeping the entry point lightweight makes the application easier to
-maintain, test, and extend as additional commands are introduced.
+Every application requires a single entry point responsible for initializing
+shared infrastructure before any business logic is executed.
 
 Responsibilities
 ----------------
-- Initialize the Typer CLI application.
-- Register all CLI commands.
-- Start the application lifecycle.
-- Delegate execution to command modules.
+- Initialize application logging.
+- Configure the CLI.
+- Validate user input.
+- Delegate execution to the analysis workflow.
 
 Out of Scope
 ------------
 This module MUST NOT contain:
 
-- Playwright artifact discovery
+- Artifact discovery
 - Artifact parsing
 - AI reasoning
 - Report generation
-- Configuration validation
 - Business logic
-
-Those responsibilities belong to their respective modules.
 
 Architecture
 ------------
-                    main.py
-                        │
-                        ▼
-                   CLI Commands
-                        │
-        ┌───────────────┼────────────────┐
-        ▼               ▼                ▼
-    parser         classifier        reports
-
-main.py acts only as an orchestrator and should never become a place
-where application logic is implemented.
+                   main.py
+                      │
+                      ▼
+          configure_logging()
+                      │
+                      ▼
+               CLI Commands
+                      │
+                      ▼
+        Analysis / Parser / Reports
 
 Impact
 ------
-Since this is the application's entry point, changes here affect the
-startup process of the entire application.
+Changes to this module affect the application startup lifecycle.
 
-Any modifications should preserve backward compatibility for CLI users.
-
-Author
-------
-QA Sentinel AI Contributors
-
+Version History
+---------------
+v0.1.0
+    Initial implementation.
 ===============================================================================
 """
 from pathlib import Path
-
 import typer
-from rich.console import Console
 
-app = typer.Typer()
+from rich.console import Console
+from src.commands.analyze import run_analysis
+from src.utils.logger import configure_logging, get_logger
+
+configure_logging()
+logger = get_logger(__name__)
+app = typer.Typer(no_args_is_help=True)
 console = Console()
+
+
+@app.callback()
+def main() -> None:
+    """Analyze automated-test evidence and produce QA insights."""
 
 
 @app.command()
@@ -89,15 +85,12 @@ def analyze(
 ):
     """Analyze a Playwright test results directory."""
 
+    logger.info("QA Sentinel AI started.")
+    logger.info(f"Artifact directory: {path}")
     console.rule("[bold cyan]QA Sentinel AI[/bold cyan]")
 
-    if not path.exists():
-        console.print(f"[red]Directory not found:[/red] {path}")
+    if not run_analysis(path, console):
         raise typer.Exit(code=1)
-
-    console.print("[green]✓ Project initialized[/green]")
-    console.print(f"Input Path : {path.resolve()}")
-    console.print("[yellow]Status     : Ready for analysis[/yellow]")
 
 
 if __name__ == "__main__":
